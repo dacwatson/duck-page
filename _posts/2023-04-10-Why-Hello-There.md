@@ -1,9 +1,9 @@
 ---
-title: "Why-Hello-There"
+title: "Why Hello There"
 date: 2023-04-10
 ---
 
-# Why, hello there.
+Why, hello there.
 
 This is the first post on my new Blog (TM). 
 
