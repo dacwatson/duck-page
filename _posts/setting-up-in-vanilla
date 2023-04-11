@@ -1,0 +1,86 @@
+---
+title: "Setting up a Python/R developer environment in VanillaOS"
+description: "an odyssey"
+date: 2023-04-10
+---
+
+So, I'm brand new to Linux.
+
+It's been a long time coming, to be honest. I think I've always been curious about it -- the clean setups you might see on r/unixporn, the tiring of Microsoft's jank, the release of proton, my tech masochism... all signs seemed to point north.
+
+Browsing around, I decided I wanted a stock, out of the box experience -- as Vanilla as possible. So I stumbled upon VanillaOS it as very clean and stock, which I liked, and upon installing it I thought the containerized system was really cool. I had no trouble at all installing a bunch of applications and overall really enjoyed the experience.
+
+So I decided to switch over my development tools to Vanilla from Windows. I prefer VScode for my R projects, and was wanting to try out PyCharm for Python. And of course I'd need to install git.
+
+As you might expect from a complete beginner, I was having some trouble, but through the trials and tribulations, I found my way. I'm posting here to hopefully guide someone else on their way, so they can learn from my mistakes and hopefully avoid some pitfalls.
+
+---
+
+### Installing through remotes
+
+So to start off, we're going to install all of our developer-related apps into a custom Ubuntu container using the command `apx install -n [your container name] [package name]`. (Note: if you want to create a Fedora or Arch container, simply add the flag `--dnf` for Fedora or `--aur` for Arch). I named mine `mydevtools`. We do this because `apx` installs applications in their own sandboxed container, meaning that our applications will not be able to communicate with each other -- no launching R or commiting from the code terminal, etc. Another small wrinkle is that some applications are not hosted in Ubuntu repositories, and are only offered as tarballs, etc.
+
+In my case, I'll be installing the `code`, `r-base`, and `git` packages. 
+
+Once we run the first command, we'll see apx initializing a named container and installing the first package. Subsequent commands should simply install the packages into that container. It's important to remember to use the `-n [your container name]` flag when interacting with apx commands from now on.
+
+If `apx` fails to create desktop icons for your GUI programs, in this case code, you can manually create them using `apx export -n [your container name] [package name]`. For example, `apx export -n mydevtools code`. 
+
+Now if we open up code and try some things out, we should see that they are all playing nicely. If you wish to run commands inside of your devtools container, you have two options: `apx run -n [your container name] [command here]` or `apx enter -n [your container name]`, which will take you inside of the container shell. It's worth noting that you won't have access to programs installed in your root shell here, such as file browsers or text editors, or even apx itself. Type `exit` to exit the container.
+
+Once the installs are done, you can use to use `apx show -n [your container name] -i [the package you installed]` to make sure that the package is installed properly.
+
+If all of the programs you want are hosted on the Ubuntu/Fedora/Arch repositories, or has a .deb file available, congratulations! It was as easy as that. However, if all you have access to is a tarball, it will be a bit more involved. 
+
+---
+
+### Installing through Tarball
+
+Now, if you wish to install a program inside the container that is only available as a .tar.gz (tarball), such as I did with Pycharm, it's a bit more involved. There isn't a way to install a tarball as a discrete package -- the best we can do is extract the files into the container and move it to a desired install location (most of the time, /opt/ is the default location for "optional" programs). 
+
+While inside the container shell, we won't be able to use the default file viewer or text editor to read files that will provide instructions on how to install the software, such as those named `README` or `INSTALL`. For this reason so I recommend you run `apx install -n [your container name] nano` to install into the container a terminal-accessible text editor for viewing files while in the container shell (more information on nano here https://help.ubuntu.com/community/Nano). If you don't want to do this, another option is to use the archive manager to extract the files and read the instructions from there.
+
+We'll start off by downloading the tarball archive. Then, we'll run `apx enter -n [your container name]` to enter the container shell. 
+
+Next, extract the files with `tar -xvf file.tar.gz`. This will extract the contents of the tarball file into a new directory within the container, most likely the Downloads folder, if that's where you had it when you ran the command.
+
+Now navigate to the extracted directory using `cd extracted_directory`, where extracted_directory is the name of the extracted folder. If you chose to install nano into the container shell, run `ls` to check for README, etc files and use `nano filename` to read them. Do your best to follow follow installation instructions from there, as they will vary from program to program.
+
+In my case, installing PyCharm, we simply run `./bin/pycharm.sh` to launch PyCharm. It should directly run the program.
+
+If you wish to be able to launch PyCharm from the command line from the host shell, you can create a command alias to do so easily. This command: `echo "alias pycharm='apx run -n mydevtools /opt/pycharm-community-2022.3.3/bin/pycharm.sh %f'" >> ~/.bashrc && source ~/.bashrc` adds the `pycharm` alias to your `~/.bashrc` file and immediately makes it available in my current shell session by sourcing the `~/.bashrc` file. In simple terms, it makes it so that the command `PyCharm` runs `apx run -n mydevtools etc` to easily launch PyCharm.
+
+It's also not quite as simple to create an application menu shortcut as it is with `apx export`, since we didn't exactly use `apx` to install it. However, we can easily create a `.desktop` file to create an entry in our launcher so we can pin it and easily search it.
+
+First, exit the terminal and open up your text editor. Paste in the following text (I've got it filled out for PyCharm, but I'll explain how to customize it to whatever program you're using.
+
+```
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PyCharm Community Edition
+Comment=Pycharm (on apx_managed_mydevtools)
+Icon=/home/landon/.local/share/icons/pycharm.svg
+Exec=/usr/lib/apx/distrobox-enter  -n apx_managed_mydevtools --   /opt/pycharm-community-2022.3.3/bin/pycharm.sh %f
+Comment=Python IDE
+Categories=Development;IDE;
+Terminal=false
+StartupWMClass=jetbrains-pycharm-ce
+StartupNotify=true
+```
+
+The `Name`, `Comment`, and `Categories` fields will be reflected in the GNOME search, so edit those however you wish. 
+
+The `Icon` field should contain a path to the icon `.svg` file, which should be located in the tarball archive `/bin/` folder. I recommend moving this icon into the icons folder. You can do this by opening a terminal, navigating to the extracted tarball /bin/ folder where the icon is contained, and running `mv ~/[icon name].svg ~/.local/share/icons`. 
+
+The `Exec` field is the command that is executed when the launcher icon is selected and should contain the `/usr/lib/apx/distrobox-enter  -n apx_managed_mydevtools --   ` part of the command in order to tell the system to open the container before accessing the directory that contains your executable file, in this case `/opt/pycharm-community-2022.3.3/bin/pycharm.sh`. The `%f` is known as a substitution string and is replaced by the filename of the file that was selected when PyCharm was launched, so that we can use the "Open With" menu in the file manager.
+
+The proper `StartupWMClass` field can be found by opening a terminal and running `xprop | grep WM_CLASS`. The cursor will change to a crosshair. Click on the window of the application you want to create a desktop file for. You should see output similar to the following: `WM_CLASS(STRING) = "application", "Application"`. Take note of the second string value (in this case, "Application"). This is the value that you should use for the `StartupWMClass` field. If `xprop` doesn't work, you can alternatively use `xwininfo -name "Application Name"`, which should return information about the window, including the WM_CLASS value.
+
+Once you're done with all that, we simply need to move the `.desktop` file into the directory containing the other desktop files. Open up a terminal, navigate to wherever you created the `.desktop` file and run `mv ~/[filename].desktop ~/.local/share/applications`.
+
+If the entry doesn't appear in your application menu immediately, log back out and log back in, and it should be there. It's worth noting that if you ever end up uninstalling the app for whatever reason, you can remove the app menu entry by removing that file.
+
+---
+
+Well, that's all there is to it! Hopefully someone finds this helpful. I learned a lot about Linux while going about doing this, but I'd be glad to save someone else the time of banging their head against the wall.
